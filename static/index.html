@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Delivery Manager — Operations Platform</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+  <style>
+    :root { --pico-font-size: 90%; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+    .badge-high { background: #d32f2f; color: white; }
+    .badge-med { background: #f57c00; color: white; }
+    .badge-ok { background: #388e3c; color: white; }
+    .card-panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 18px; margin-bottom: 20px; }
+    .grid-custom { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+    pre { background: #0d1117; color: #58a6ff; padding: 10px; border-radius: 6px; font-size: 12px; }
+  </style>
+</head>
+<body class="container">
+  <header style="margin-bottom: 20px;">
+    <h2>AI Delivery Manager</h2>
+    <p><small>Intelligent Dynamic Workforce Allocation & Capacity Optimization | <strong>LINKESH K V (CB.EN.U4ARE23023)</strong></small></p>
+  </header>
+
+  <!-- Live Team Workload Heatmap -->
+  <section class="card-panel">
+    <h4>Team Capacity Heatmap (5-Day Window)</h4>
+    <div id="teamHeatmap" class="grid-custom">Loading live capacity data...</div>
+  </section>
+
+  <div class="grid">
+    <!-- Task Dispatch Panel -->
+    <section class="card-panel">
+      <h4>Natural Language Task Dispatch (LangGraph Pipeline)</h4>
+      <textarea id="promptInput" rows="3" placeholder="e.g., Implement secure Stripe payment webhook handlers in FastAPI. Requires 10 hours."></textarea>
+      <button onclick="runWorkflow()">Analyze & Orchestrate</button>
+      <div id="pipelineStatus" style="margin-top:10px;"></div>
+    </section>
+
+    <!-- Simulation & Employee Assistant -->
+    <section class="card-panel">
+      <h4>What-If Absence Simulator</h4>
+      <label for="simSelect">Simulate absence for:</label>
+      <select id="simSelect">
+        <option value="E02">Bob (E02 — Backend Developer)</option>
+        <option value="E03">Charlie (E03 — Frontend Developer)</option>
+        <option value="E04">Diana (E04 — AI/ML Engineer)</option>
+        <option value="E10">Jack (E10 — Junior Developer)</option>
+      </select>
+      <button class="secondary" onclick="runSimulation()">Execute Bounded Simulation</button>
+      <div id="simResults" style="margin-top:10px;"></div>
+    </section>
+  </div>
+
+  <!-- Review & Approval Gate -->
+  <section id="approvalGate" class="card-panel" style="display:none;">
+    <h4>Human-in-the-Loop Review Gate</h4>
+    <div id="recommendationDetails"></div>
+    <div style="margin-top: 15px; display:flex; gap:10px;">
+      <button class="contrast" onclick="submitDecision('Approve')">Approve & Execute DB Write</button>
+      <button class="secondary" onclick="submitDecision('Reject')">Reject Recommendation</button>
+    </div>
+  </section>
+
+  <!-- Audit & Historical Telemetry -->
+  <section class="card-panel">
+    <h4>Audit Trail & Calibration Telemetry</h4>
+    <div id="auditLogContainer"><small>No audit events registered yet.</small></div>
+  </section>
+
+  <script>
+    let activeTaskPayload = null;
+    let activeRecommendation = null;
+
+    async function refreshDashboard() {
+      const res = await fetch('/api/dashboard/overview');
+      const data = await res.json();
+      
+      // Render Team Cards
+      const container = document.getElementById('teamHeatmap');
+      container.innerHTML = data.team_workload.map(emp => {
+        let badgeClass = emp.remaining_capacity < 10 ? 'badge-high' : (emp.remaining_capacity < 25 ? 'badge-med' : 'badge-ok');
+        return `
+          <div style="border: 1px solid #30363d; padding: 12px; border-radius: 6px; background: #0d1117;">
+            <strong>${emp.name}</strong> <small>(${emp.employee_id})</small><br>
+            <small style="color: #8b949e;">${emp.role}</small><br>
+            <div style="margin-top:8px;">
+              <span class="status-badge ${badgeClass}">${emp.remaining_capacity}h Free</span>
+              <small>${emp.meeting_hours}h Meetings</small>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Render Audits
+      const auditContainer = document.getElementById('auditLogContainer');
+      if (data.recent_audits.length > 0) {
+        auditContainer.innerHTML = data.recent_audits.map(a => `
+          <div><small><strong>[${a.timestamp.slice(11,19)}] ${a.event_type}</strong> — Task: <em>${a.task_title}</em> | Employee: ${a.target_employee_id || 'N/A'}</small></div>
+        `).join('');
+      }
+    }
+
+    async function runWorkflow() {
+      const prompt = document.getElementById('promptInput').value;
+      if (!prompt) return alert('Enter a task description.');
+
+      document.getElementById('pipelineStatus').innerHTML = '<small>Executing LangGraph agent nodes via local Llama 3...</small>';
+      document.getElementById('approvalGate').style.display = 'none';
+
+      const res = await fetch('/api/workflow/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manager_prompt: prompt })
+      });
+      const data = await res.json();
+      
+      activeTaskPayload = data.parsed_task;
+      activeRecommendation = data.ai_recommendation;
+
+      document.getElementById('pipelineStatus').innerHTML = `<small style="color:#3fb950;">Analysis complete. Recommended candidate: <strong>${activeRecommendation.recommended_employee_id}</strong></small>`;
+      
+      document.getElementById('approvalGate').style.display = 'block';
+      document.getElementById('recommendationDetails').innerHTML = `
+        <p><strong>Task:</strong> ${activeTaskPayload.title} | <strong>Effort:</strong> ${activeTaskPayload.estimated_effort_hours}h | <strong>Priority:</strong> ${activeTaskPayload.priority}</p>
+        <p><strong>Recommended:</strong> ${activeRecommendation.recommended_employee_id} (Confidence: ${activeRecommendation.confidence})</p>
+        <p><strong>Reasoning:</strong> ${activeRecommendation.reasoning}</p>
+        <p><strong>Trade-offs:</strong> ${activeRecommendation.tradeoffs}</p>
+      `;
+      refreshDashboard();
+    }
+
+    async function submitDecision(decision) {
+      const res = await fetch('/api/workflow/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parsed_task: activeTaskPayload,
+          recommended_employee_id: activeRecommendation.recommended_employee_id,
+          decision: decision
+        })
+      });
+      const data = await res.json();
+      alert(`Decision Recorded: ${data.status}\n${data.message}`);
+      document.getElementById('approvalGate').style.display = 'none';
+      document.getElementById('promptInput').value = '';
+      document.getElementById('pipelineStatus').innerHTML = '';
+      refreshDashboard();
+    }
+
+    async function runSimulation() {
+      const empId = document.getElementById('simSelect').value;
+      const res = await fetch(`/api/simulate/absence/${empId}`);
+      const data = await res.json();
+      document.getElementById('simResults').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+    }
+
+    // Initialize on load
+    refreshDashboard();
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Virtual Environments (contains all installed libraries, too heavy to upload)
+venv/
+env/
+.venv/
+
+# Python Cache & Bytecode (auto-generated when you run scripts)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing & IDE caches (specific to your local machine setup)
+.pytest_cache/
+.vscode/
+.idea/
+
+# OS specific hidden files
+.DS_Store
+Thumbs.db
+
+# Environment variables (crucial if you ever add real API keys or DB passwords later)
+.env
